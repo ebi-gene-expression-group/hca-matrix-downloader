@@ -1,56 +1,76 @@
-import urllib.request
-import subprocess
-import requests
 import argparse
-import hca.dss
+import requests
+import zipfile
+import shutil
 import json
 import time
+import sys
 import os
 
 def parse_args():
-	parser = argparse.ArgumentParser()
-	parser.add_argument('-p', '--project', help="The project's Short Name, as seen in the HCA Data Browser entry, wrapped in quotes.")
+	parser = argparse.ArgumentParser("Download data via HCA's Matrix API V1. Requires either -p or -q input.")
+	parser.add_argument('-p', '--project', help="The project's Project Title, Project Label or link-derived ID, obtained from the HCA DCP, wrapped in quotes.")
+	parser.add_argument('-q', '--query', help="A complete /v1/matrix/ POST query in JSON format. Consult https://matrix.dev.data.humancellatlas.org/ for details.")
 	args = parser.parse_args()
+	if not any(vars(args).values()):
+		parser.error('No arguments provided.')
 	return args
 
 def main():
-	#load up project name
+	#parse the command line arguments
 	args = parse_args()
-	#set up DSS connection to download the sample info needed by the matrix API
-	dsscli = hca.dss.DSSClient()
-	#format the query, thankfully the only thing that changes is the project short name on input
-	es_query = json.loads('{"query":{"bool":{"must":[{"match":{"files.project_json.project_core.project_short_name":"'+args.project+'"}},{"match":{"files.analysis_process_json.process_type.text":"analysis"}}]}}}')
-	#try to download the manifest and extract the fqids, which the matrix API needs
-	manifest = ['bundle_uuid\tbundle_version\n']
-	try:
-		for entry in dsscli.post_search.iterate(es_query=es_query, replica='aws'):
-			entry_split = entry['bundle_fqid'].split('.')
-			manifest.append(entry_split[0]+'\t'+entry_split[1]+'.'+entry_split[2]+'\n')
-	except TypeError:
-		#if the short name does not exist in the system, the above code bit tosses a TypeError
-		raise ValueError("The specified project Short Name was not found in the database")
-	#upload the fqid information to an external site for matrix API access
-	#using file.io here. this is not ideal, but will have to do as a stop-gap
-	#as the matrix API supposedly will get upgraded at some point
-	with open('ids.txt','w') as fid:
-		fid.writelines(manifest)
-	res = subprocess.run('curl -F "file=@ids.txt" https://file.io', shell=True, stdout=subprocess.PIPE)
-	os.remove('ids.txt')
-	#so we have our manifest in URL form, like the matrix API wants us to
-	#fire up a matrix API query
-	manifest_url = json.loads(res.stdout.decode('utf-8'))['link']
-	url = 'https://matrix.data.humancellatlas.org/v0/matrix'
-	headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
-	data = json.dumps({"bundle_fqids_url": manifest_url, "format": "loom"})
-	r = requests.post(url, data=data, headers=headers)
-	#now we have to keep checking if the matrix is available for download
-	request_id = json.loads(r.content)['request_id']
-	r = requests.get(url+'/'+request_id)
-	while json.loads(r.content)['status'] == 'In Progress':
+	#the Matrix API is located here
+	MATRIX_URL = "https://matrix.data.humancellatlas.org/v1"
+	if args.query:
+		#the user provided a query on input, parse it into a JSON and we're done
+		query = json.loads(args.query)
+	else:
+		#the user provided a project name, start by determining the type of name
+		found = False
+		for project_type in ["project.provenance.document_id",
+							 "project.project_core.project_short_name",
+							 "project.project_core.project_title"]:
+			#get the list of all available IDs for the potential type of name
+			resp = requests.get(MATRIX_URL+"/filters/"+project_type)
+			#is our project here?
+			if args.project in list(resp.json()['cell_counts'].keys()):
+				#if so, flag that we matched the name type
+				found = True
+				break
+		#we failed to locate our project in the database, abort downloader
+		if not found:
+			raise ValueError("The specified project was not found in the database")
+		#construct our JSON query, matching the formal formatting requirements
+		query = {"filter":
+					{"op": "=",
+					 "value": args.project,
+					 "field": project_type
+				}}
+	#fire up the query at the Matrix API
+	print("Contacting the Matrix API using the query: "+json.dumps(query))
+	resp = requests.post(MATRIX_URL+"/matrix", json=query)
+	#if there's no request_id field, something failed, report to user and abort
+	if "request_id" not in resp.json().keys():
+		raise ValueError("The Matrix API call failed with the following output: "+resp.text)
+	while True:
+		#check for doneness, the status will swap away from In Progress
+		status_resp = requests.get(MATRIX_URL+"/matrix/"+resp.json()["request_id"])
+		if status_resp.json()["status"] != "In Progress":
+			break
 		time.sleep(30)
-		r = requests.get(url+'/'+request_id)
-	#the matrix is available. download it. done.
-	urllib.request.urlretrieve(json.loads(r.content)["matrix_location"], "download.loom")
+	#did we succeed?
+	if status_resp.json()['status'] == "Complete":
+		#if we did, download the matrix
+		matrix_response = requests.get(status_resp.json()["matrix_url"], stream=True)
+		matrix_zip_filename = os.path.basename(status_resp.json()["matrix_url"])
+		with open(matrix_zip_filename, 'wb') as matrix_zip_file:
+			shutil.copyfileobj(matrix_response.raw, matrix_zip_file)
+		#this comes as a zip, extract the contents and lose the archive
+		zipfile.ZipFile(matrix_zip_filename).extractall()
+		os.remove(matrix_zip_filename)
+	else:
+		#something went wrong, spit out what and abort
+		raise ValueError("The Matrix API call failed with the following output: "+status_resp.text)
 
 if __name__ == "__main__":
 	main()
