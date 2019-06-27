@@ -11,6 +11,9 @@ def parse_args():
 	parser = argparse.ArgumentParser("Download data via HCA's Matrix API V1. Requires either -p or -q input.")
 	parser.add_argument('-p', '--project', help="The project's Project Title, Project Label or link-derived ID, obtained from the HCA DCP, wrapped in quotes.")
 	parser.add_argument('-q', '--query', help="A complete /v1/matrix/ POST query in JSON format. Consult https://matrix.dev.data.humancellatlas.org/ for details.")
+	parser.add_argument('-f', '--format',
+						default="loom",
+						help="Format to download matrix in: loom, csv or mtx (Matrix Market).")
 	args = parser.parse_args()
 	if not any(vars(args).values()):
 		parser.error('No arguments provided.')
@@ -46,6 +49,8 @@ def main():
 					 "value": args.project,
 					 "field": project_type
 				}}
+	if args.format:
+		query['format'] = args.format
 	#fire up the query at the Matrix API
 	print("Contacting the Matrix API using the query: "+json.dumps(query))
 	resp = requests.post(MATRIX_URL+"/matrix", json=query)
