@@ -1,0 +1,42 @@
+#!/bin/bash
+
+zcat=$(which gzcat)
+if [[ -z $zcat ]]; then
+    zcat=$(which zcat)
+    if [[ -z $zcat ]]; then
+        echo '`zcat` not found'
+        exit
+    fi
+fi
+
+indir=$1
+
+if [[ -z $indir ]]; then
+    echo "usage: $0 <in> [out]"
+    echo '  in : a directory holding mtx downloaded from HCA DCP'
+    echo '  out: a directory holding outputs, default to ${in}.10x'
+    exit
+fi
+
+in_mtx="$indir/matrix.mtx.gz"
+in_cells="$indir/cells.tsv.gz"
+in_genes="$indir/genes.tsv.gz"
+
+if [[ ! ( -f $in_mtx && -f $in_cells && -f $in_genes ) ]]; then
+    echo "${indir}: invalid input directory, missing expected file(s)."
+    exit 1
+fi
+
+outdir=${2:-${indir}.10x}
+
+if [[ ! -d $outdir ]]; then
+    mkdir -p $outdir
+fi
+
+out_mtx="$outdir/matrix.mtx"
+out_barcodes="$outdir/barcodes.tsv"
+out_genes="$outdir/genes.tsv"
+
+$zcat $in_mtx > $out_mtx
+$zcat $in_cells | cut -f1 | sed '1d' > $out_barcodes
+$zcat $in_genes | cut -f1,2 | sed '1d' > $out_genes
