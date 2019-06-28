@@ -4,7 +4,7 @@ with open('README.md', 'r') as fh:
     long_description = fh.read()
 
 with open('VERSION', 'r') as fh:
-    version = fh.read()
+    version = fh.read().rstrip()
 
 with open('requirements.txt', 'r') as fh:
     requirements = fh.readlines()
@@ -24,7 +24,7 @@ setup(
     ],
     entry_points=dict(
         console_scripts=[
-            'hca-matrix-downloader=hca_matrix_service_client:main',
+            'hca-matrix-downloader=hca_matrix_service.client:main',
         ]
     ),
     install_requires=requirements,
