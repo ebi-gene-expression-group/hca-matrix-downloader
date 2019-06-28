@@ -12,7 +12,7 @@ fi
 indir=$1
 
 if [[ -z $indir ]]; then
-    echo "usage: $0 <in> [out]"
+    echo "usage: ${0/*\//} <in> [out]"
     echo '  in : a directory holding mtx downloaded from HCA DCP'
     echo '  out: a directory holding outputs, default to ${in}.10x'
     exit
