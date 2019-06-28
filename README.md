@@ -9,3 +9,7 @@
 -p cddab57b-6868-4be4-806f-395ed9dd635a
 -q '{"filter": {"field": "project.project_core.project_short_name", "value": "Single cell transcriptome analysis of human pancreas", "op": "="}}'
 ```
+
+For complete usage information, use `-h`.
+
+A shell script for converting HCA mtx to 10X(v2)-compatible mtx is provided.
