@@ -11,9 +11,8 @@ def parse_args():
 	parser = argparse.ArgumentParser("Download data via HCA's Matrix API V1. Requires either -p or -q input.")
 	parser.add_argument('-p', '--project', help="The project's Project Title, Project Label or link-derived ID, obtained from the HCA DCP, wrapped in quotes.")
 	parser.add_argument('-q', '--query', help="A complete /v1/matrix/ POST query in JSON format. Consult https://matrix.dev.data.humancellatlas.org/ for details.")
-	parser.add_argument('-f', '--format',
-						default="loom",
-						help="Format to download matrix in: loom, csv or mtx (Matrix Market).")
+	parser.add_argument('-f', '--format', default="loom", help="Format to download matrix in: loom, csv or mtx (Matrix Market).")
+	parser.add_argument('-o', '--outprefix', default=None, help="Output prefix for downloaded matrix. Use `request_id` if not specified.")
 	args = parser.parse_args()
 	if not any(vars(args).values()):
 		parser.error('No arguments provided.')
@@ -57,6 +56,8 @@ def main():
 	#if there's no request_id field, something failed, report to user and abort
 	if "request_id" not in resp.json().keys():
 		raise ValueError("The Matrix API call failed with the following output: "+resp.text)
+	request_id = resp.json()['request_id']
+	print(request_id)
 	while True:
 		#check for doneness, the status will swap away from In Progress
 		status_resp = requests.get(MATRIX_URL+"/matrix/"+resp.json()["request_id"])
@@ -73,6 +74,10 @@ def main():
 		#this comes as a zip, extract the contents and lose the archive
 		zipfile.ZipFile(matrix_zip_filename).extractall()
 		os.remove(matrix_zip_filename)
+		if args.outprefix:
+			os.rename(
+				'{}.{}'.format(request_id, args.format),
+				'{}.{}'.format(args.outprefix, args.format))
 	else:
 		#something went wrong, spit out what and abort
 		raise ValueError("The Matrix API call failed with the following output: "+status_resp.text)
