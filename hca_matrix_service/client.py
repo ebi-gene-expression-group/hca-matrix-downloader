@@ -11,8 +11,8 @@ def parse_args():
 	parser = argparse.ArgumentParser("Download data via HCA's Matrix API V1. Requires either -p or -q input.")
 	parser.add_argument('-p', '--project', help="The project's Project Title, Project Label or link-derived ID, obtained from the HCA DCP, wrapped in quotes.")
 	parser.add_argument('-q', '--query', help="A complete /v1/matrix/ POST query in JSON format. Consult https://matrix.dev.data.humancellatlas.org/ for details.")
-	parser.add_argument('-f', '--format', default="loom", help="Format to download matrix in: loom, csv or mtx (Matrix Market).")
-	parser.add_argument('-o', '--outprefix', default=None, help="Output prefix for downloaded matrix. Use `request_id` if not specified.")
+	parser.add_argument('-f', '--format', default="loom", help="Format to download matrix in: loom, csv or mtx (Matrix Market). Defaults to loom.")
+	parser.add_argument('-o', '--outprefix', default=None, help="Output prefix for downloaded matrix. Leave default name (the Matrix API request ID) if not specified.")
 	args = parser.parse_args()
 	if not any(vars(args).values()):
 		parser.error('No arguments provided.')
@@ -57,7 +57,7 @@ def main():
 	if "request_id" not in resp.json().keys():
 		raise ValueError("The Matrix API call failed with the following output: "+resp.text)
 	request_id = resp.json()['request_id']
-	print(request_id)
+	print('Matrix API request ID: '+request_id)
 	while True:
 		#check for doneness, the status will swap away from In Progress
 		status_resp = requests.get(MATRIX_URL+"/matrix/"+resp.json()["request_id"])
@@ -68,12 +68,17 @@ def main():
 	if status_resp.json()['status'] == "Complete":
 		#if we did, download the matrix
 		matrix_response = requests.get(status_resp.json()["matrix_url"], stream=True)
-		matrix_zip_filename = os.path.basename(status_resp.json()["matrix_url"])
-		with open(matrix_zip_filename, 'wb') as matrix_zip_file:
-			shutil.copyfileobj(matrix_response.raw, matrix_zip_file)
-		#this comes as a zip, extract the contents and lose the archive
-		zipfile.ZipFile(matrix_zip_filename).extractall()
-		os.remove(matrix_zip_filename)
+		matrix_filename = os.path.basename(status_resp.json()["matrix_url"])
+		with open(matrix_filename, 'wb') as matrix_file:
+			shutil.copyfileobj(matrix_response.raw, matrix_file)
+		#this used to come as a zip for everything, now loom just comes plain
+		if args.format != 'loom':
+			zipfile.ZipFile(matrix_filename).extractall()
+			#for whatever crazy reason, the folder within the zip sometimes comes with a
+			#different name than the request id. possibly some caching on their end.
+			#rename to match our request ID
+			os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], request_id+'.'+args.format)
+			os.remove(matrix_filename)
 		if args.outprefix:
 			os.rename(
 				'{}.{}'.format(request_id, args.format),

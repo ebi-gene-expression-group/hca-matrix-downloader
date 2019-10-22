@@ -1,3 +1,8 @@
+# Human Cell Atlas Matrix Service Client
+
+This small cli enables the retrieval of data from the Human Cell Atlas Matrix Service for a particular experiment in either
+Loom or Matrix market format.
+
 1. Go to the HCA Data Browser: https://prod.data.humancellatlas.org/explore/projects
 2. Under "Search", write in "matrix". This will limit the projects to those supporting the matrix formatting
 3. Click on a project of interest in the list, e.g. this one: https://prod.data.humancellatlas.org/explore/projects/cddab57b-6868-4be4-806f-395ed9dd635a
