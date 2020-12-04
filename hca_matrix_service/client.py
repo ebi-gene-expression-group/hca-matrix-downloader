@@ -17,7 +17,7 @@ def parse_args():
                         help="The project's Project Title, Project short name or link-derived ID, obtained from the "
                              "HCA DCP, wrapped in quotes.")
     parser.add_argument('-f', '--format', default="loom", choices=["loom", "mtx"],
-                        help="Format to download matrix in: loom, csv or mtx (Matrix Market). Defaults to loom.")
+                        help="Format to download matrix in: loom or mtx (Matrix Market). Defaults to loom.")
     parser.add_argument('-o', '--outprefix', default=None,
                         help="Output prefix for downloaded matrix. Leave default name (the Matrix API request ID) if "
                              "not specified.")
@@ -27,9 +27,8 @@ def parse_args():
     return args
 
 
-def get_project_uuid(project_arg):
-    with open("hca_dcp_project_index.json", "r") as pi:
-        project_index = json.load(pi)
+def get_project_uuid(project_arg, project_index):
+
     try:
         # if uuid provided and it is in the index, return the uuid
         if re.match('.{8}-.{4}-.{4}-.{4}-.{12}', project_arg) and project_index[project_arg]:
@@ -45,23 +44,18 @@ def get_project_uuid(project_arg):
         sys.exit()
 
 
-def download_file(project_uuid, file_format, prefix):
-    ftp_url = "ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/dcp1_matrices/"
-    if file_format is "mtx":
-        file_extension = "mtx.zip"
-    else:
-        file_extension = "loom"
-    matrix_filename = project_uuid + "." + file_extension
-    file_address = ftp_url + matrix_filename
+def download_file(project_uuid, file_format, prefix, project_index):
+    file_address = project_index[project_uuid][file_format]
+    files_dict = {fa: os.path.basename(fa) for fa in file_address}
+    print("Found " + str(len(files_dict)) + " matrices to download.")
 
-    with urllib.request.urlopen(file_address) as response, open(matrix_filename, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
+    for ftp_address, matrix_filename in files_dict.items():
+        print("Downloading from " + ftp_address + ".")
+        with urllib.request.urlopen(ftp_address) as response, open(matrix_filename, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
 
     if file_format != 'loom':
         zipfile.ZipFile(matrix_filename).extractall()
-        # for whatever crazy reason, the folder within the zip sometimes comes with a
-        # different name than the request id. possibly some caching on their end.
-        # rename to match our request ID
         os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], project_uuid + '.' + file_format)
         os.remove(matrix_filename)
 
@@ -74,8 +68,10 @@ def download_file(project_uuid, file_format, prefix):
 def main():
     # parse the command line arguments
     args = parse_args()
-    requested_project_uuid = get_project_uuid(args.project)
-    download_file(requested_project_uuid, args.format, args.outprefix)
+    with open("hca_dcp_project_index.json", "r") as pi:
+        loaded_index = json.load(pi)
+    requested_project_uuid = get_project_uuid(args.project, loaded_index)
+    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index)
     print("Project matrix successfully downloaded.")
     sys.exit()
 
