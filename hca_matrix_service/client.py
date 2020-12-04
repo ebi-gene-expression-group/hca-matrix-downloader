@@ -60,7 +60,7 @@ def download_file(project_uuid, file_format, prefix, project_info):
             zipfile.ZipFile(matrix_filename).extractall()
             species = matrix_filename.split(".")[1]
             os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
-                      "'{}'.'{}'.'{}".format(project_uuid, species, file_format))
+                      "'{}'.'{}'.'{}'".format(project_uuid, species, file_format))
             os.remove(matrix_filename)
 
         if prefix:
