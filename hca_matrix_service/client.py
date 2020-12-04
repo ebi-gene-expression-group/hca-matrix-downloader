@@ -28,7 +28,6 @@ def parse_args():
 
 
 def get_project_uuid(project_arg, project_index):
-
     try:
         # if uuid provided and it is in the index, return the uuid
         if re.match('.{8}-.{4}-.{4}-.{4}-.{12}', project_arg) and project_index[project_arg]:
@@ -44,8 +43,8 @@ def get_project_uuid(project_arg, project_index):
         sys.exit()
 
 
-def download_file(project_uuid, file_format, prefix, project_index):
-    file_address = project_index[project_uuid][file_format]
+def download_file(project_uuid, file_format, prefix, project_info):
+    file_address = project_info[file_format]
     files_dict = {fa: os.path.basename(fa) for fa in file_address}
     print("Found " + str(len(files_dict)) + " matrices to download.")
 
@@ -71,7 +70,7 @@ def main():
     with open("hca_dcp_project_index.json", "r") as pi:
         loaded_index = json.load(pi)
     requested_project_uuid = get_project_uuid(args.project, loaded_index)
-    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index)
+    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid])
     print("Project matrix successfully downloaded.")
     sys.exit()
 
