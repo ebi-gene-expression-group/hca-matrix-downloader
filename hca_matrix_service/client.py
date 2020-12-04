@@ -76,6 +76,8 @@ def main():
     args = parse_args()
     requested_project_uuid = get_project_uuid(args.project)
     download_file(requested_project_uuid, args.format, args.outprefix)
+    print("Project matrix successfully downloaded.")
+    sys.exit()
 
 
 if __name__ == "__main__":
