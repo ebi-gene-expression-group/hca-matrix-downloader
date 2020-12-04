@@ -32,11 +32,11 @@ def get_project_uuid(project_arg, project_index):
     try:
         # if uuid provided and it is in the index, return the uuid
         if project_index[project_arg] and re.match('.{8}-.{4}-.{4}-.{4}-.{12}', project_arg):
-            print("Project uuid {} found with title '{}'.".format(project_arg, project_index[project_arg]
+            print("Project uuid '{}' found with title '{}'.".format(project_arg, project_index[project_arg]
                   ['project.project_core.project_title']))
             return project_arg
         # if not a uuid, look up the uuid and return it
-        print("Project '" + project_arg + "' found with uuid '" + project_index[project_arg] + "'.")
+        print("Project '{}' found with uuid '{}'.".format(project_arg, project_index[project_arg]))
         return project_index[project_arg]
     except KeyError as e:
         print(e)
