@@ -2,7 +2,6 @@ import argparse
 import requests
 import zipfile
 import shutil
-import urllib
 import json
 import time
 import re
