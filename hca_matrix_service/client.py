@@ -53,16 +53,16 @@ def download_file(project_uuid, file_format, prefix, project_info):
         with urllib.request.urlopen(ftp_address) as response, open(matrix_filename, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
-    if file_format != 'loom':
-        zipfile.ZipFile(matrix_filename).extractall()
-        os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], project_uuid + '.' + file_format)
-        os.remove(matrix_filename)
+        if file_format != 'loom':
+            zipfile.ZipFile(matrix_filename).extractall()
+            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], project_uuid + '.' + file_format)
+            os.remove(matrix_filename)
 
-    if prefix:
-        os.rename(
-            '{}.{}'.format(project_uuid, file_format),
-            '{}.{}'.format(prefix, file_format)
-        )
+        if prefix:
+            os.rename(
+                '{}.{}'.format(project_uuid, file_format),
+                '{}.{}'.format(prefix, file_format)
+            )
 
 def main():
     # parse the command line arguments
