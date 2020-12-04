@@ -40,7 +40,7 @@ def get_project_uuid(project_arg, project_index):
         return project_index[project_arg]
     except KeyError as e:
         print(e)
-        print("The project identifier " + str(e) + " was not found in the database. Please check input and try again.")
+        print("The project identifier '{}' was not found in the database. Please check input and try again.".format(str(e)))
         sys.exit()
 
 
@@ -59,8 +59,8 @@ def download_file(project_uuid, file_format, prefix, project_info):
         if file_format != 'loom':
             zipfile.ZipFile(matrix_filename).extractall()
             species = matrix_filename.split(".")[1]
-            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], project_uuid + '.' + species + '.'
-                      + file_format)
+            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
+                      "'{}'.'{}'.'{}".format(project_uuid, species, file_format))
             os.remove(matrix_filename)
 
         if prefix:
