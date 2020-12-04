@@ -41,12 +41,6 @@
     },
     "A single-cell transcriptome atlas of the adult human retina": "8185730f-4113-40d3-9cc3-929271784c2b",
     "WongAdultRetina": "8185730f-4113-40d3-9cc3-929271784c2b",
-    "88ec040b-8705-4f77-8f41-f81e57632f7d": {
-        "project.project_core.project_title": "Systematic comparative analysis of single cell RNA-sequencing methods",
-        "project.project_core.project_short_name": "scRNAseqSystemicComparison"
-    },
-    "Systematic comparative analysis of single cell RNA-sequencing methods": "88ec040b-8705-4f77-8f41-f81e57632f7d",
-    "scRNAseqSystemicComparison": "88ec040b-8705-4f77-8f41-f81e57632f7d",
     "abe1a013-af7a-45ed-8c26-f3793c24a1f4": {
         "project.project_core.project_title": "Spatio-temporal immune zonation of the human kidney",
         "project.project_core.project_short_name": "KidneySingleCellAtlas"
