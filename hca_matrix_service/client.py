@@ -17,8 +17,8 @@ def parse_args():
     parser.add_argument('-f', '--format', default="loom", choices=["loom", "mtx"],
                         help="Format to download matrix in: loom or mtx (Matrix Market). Defaults to loom.")
     parser.add_argument('-o', '--outprefix', default=None,
-                        help="Output prefix for downloaded matrix. Leave default name (the Matrix API request ID) if "
-                             "not specified.")
+                        help="Output prefix to replace project uuid in filename of downloaded matrix. Leave as project "
+                             "uuid if not specified.")
     args = parser.parse_args()
     return args
 
@@ -40,29 +40,33 @@ def get_project_uuid(project_arg, project_index):
         return project_index[project_arg]
     except KeyError as e:
         print(e)
-        print("The project identifier " + str(e) + " was not found in the database. Please check input and try again.")
+        print("The project identifier '{}' was not found in the database. Please check input and try again.".format(str(e)))
         sys.exit()
 
 
 def download_file(project_uuid, file_format, prefix, project_info):
     file_address = project_info[file_format]
     files_dict = {fa: os.path.basename(fa) for fa in file_address}
+
     print("Found " + str(len(files_dict)) + " matrices to download.")
 
     for ftp_address, matrix_filename in files_dict.items():
         print("Downloading from " + ftp_address + ".")
+        species = matrix_filename.split(".")[1]
         with urllib.request.urlopen(ftp_address) as response, open(matrix_filename, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
         if file_format != 'loom':
             zipfile.ZipFile(matrix_filename).extractall()
-            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], project_uuid + '.' + file_format)
+            species = matrix_filename.split(".")[1]
+            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
+                      "'{}'.'{}'.'{}'".format(project_uuid, species, file_format))
             os.remove(matrix_filename)
 
         if prefix:
             os.rename(
-                '{}.{}'.format(project_uuid, file_format),
-                '{}.{}'.format(prefix, file_format)
+                '{}.{}.{}'.format(project_uuid, species, file_format),
+                '{}.{}.{}'.format(prefix, species, file_format)
             )
 
 def main():
@@ -71,7 +75,7 @@ def main():
     loaded_index = load_project_index('ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/dcp1_matrices/hca_dcp_project_index.json')
     requested_project_uuid = get_project_uuid(args.project, loaded_index)
     download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid])
-    print("Project matrix successfully downloaded.")
+    print("Project matrix data successfully downloaded.")
     sys.exit()
 
 
