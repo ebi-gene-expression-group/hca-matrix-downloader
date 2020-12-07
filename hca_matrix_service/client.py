@@ -68,7 +68,7 @@ def download_file(project_uuid, file_format, prefix, project_info):
 def main():
     # parse the command line arguments
     args = parse_args()
-    loaded_index = load_project_index('ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/hca_dcp_project_index.json')
+    loaded_index = load_project_index('ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/dcp1_matrices/hca_dcp_project_index.json')
     requested_project_uuid = get_project_uuid(args.project, loaded_index)
     download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid])
     print("Project matrix successfully downloaded.")
