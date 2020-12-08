@@ -1,91 +1,82 @@
 import argparse
-import requests
 import zipfile
 import shutil
 import json
-import time
+import re
 import sys
 import os
+import urllib.request
+
 
 def parse_args():
-	parser = argparse.ArgumentParser("Download data via HCA's Matrix API V1. Requires either -p or -q input.")
-	parser.add_argument('-p', '--project', help="The project's Project Title, Project Label or link-derived ID, obtained from the HCA DCP, wrapped in quotes.")
-	parser.add_argument('-q', '--query', help="A complete /v1/matrix/ POST query in JSON format. Consult https://matrix.dev.data.humancellatlas.org/ for details.")
-	parser.add_argument('-f', '--format', default="loom", help="Format to download matrix in: loom, csv or mtx (Matrix Market). Defaults to loom.")
-	parser.add_argument('-o', '--outprefix', default=None, help="Output prefix for downloaded matrix. Leave default name (the Matrix API request ID) if not specified.")
-	args = parser.parse_args()
-	if not any(vars(args).values()):
-		parser.error('No arguments provided.')
-	return args
+    parser = argparse.ArgumentParser("Download data via HCA DCP FTP. Requires -p input. Files are downloaded into "
+                                     "current working directory.")
+    parser.add_argument('-p', '--project',
+                        help="The project's Project Title, Project short name or link-derived ID, obtained from the "
+                             "HCA DCP, wrapped in quotes.", required=True)
+    parser.add_argument('-f', '--format', default="loom", choices=["loom", "mtx"],
+                        help="Format to download matrix in: loom or mtx (Matrix Market). Defaults to loom.")
+    parser.add_argument('-o', '--outprefix', default=None,
+                        help="Output prefix to replace project uuid in filename of downloaded matrix. Leave as project "
+                             "uuid if not specified.")
+    args = parser.parse_args()
+    return args
+
+
+def load_project_index(path):
+    with urllib.request.urlopen(path) as response:
+        project_index = json.load(response)
+    return project_index
+
+def get_project_uuid(project_arg, project_index):
+    try:
+        # if uuid provided and it is in the index, return the uuid
+        if project_index[project_arg] and re.match('.{8}-.{4}-.{4}-.{4}-.{12}', project_arg):
+            print("Project uuid '{}' found with title '{}'.".format(project_arg, project_index[project_arg]
+                  ['project.project_core.project_title']))
+            return project_arg
+        # if not a uuid, look up the uuid and return it
+        print("Project '{}' found with uuid '{}'.".format(project_arg, project_index[project_arg]))
+        return project_index[project_arg]
+    except KeyError as e:
+        print(e)
+        print("The project identifier '{}' was not found in the database. Please check input and try again.".format(str(e)))
+        sys.exit(1)
+
+
+def download_file(project_uuid, file_format, prefix, project_info):
+    file_address = project_info[file_format]
+    files_dict = {fa: os.path.basename(fa) for fa in file_address}
+
+    print("Found " + str(len(files_dict)) + " matrices to download.")
+
+    for ftp_address, matrix_filename in files_dict.items():
+        print("Downloading from " + ftp_address + ".")
+        species = matrix_filename.split(".")[1]
+        with urllib.request.urlopen(ftp_address) as response, open(matrix_filename, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+
+        if file_format != 'loom':
+            zipfile.ZipFile(matrix_filename).extractall()
+            os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
+                      "{}.{}.{}".format(project_uuid, species, file_format))
+            os.remove(matrix_filename)
+
+        if prefix:
+            os.rename(
+                '{}.{}.{}'.format(project_uuid, species, file_format),
+                '{}.{}.{}'.format(prefix, species, file_format)
+            )
 
 def main():
-	#parse the command line arguments
-	args = parse_args()
-	#the Matrix API is located here
-	MATRIX_URL = "https://matrix.data.humancellatlas.org/v1"
-	if args.query:
-		#the user provided a query on input, parse it into a JSON and we're done
-		query = json.loads(args.query)
-	else:
-		#the user provided a project name, start by determining the type of name
-		found = False
-		for project_type in ["project.provenance.document_id",
-							 "project.project_core.project_short_name",
-							 "project.project_core.project_title"]:
-			#get the list of all available IDs for the potential type of name
-			resp = requests.get(MATRIX_URL+"/filters/"+project_type)
-			#is our project here?
-			if args.project in list(resp.json()['cell_counts'].keys()):
-				#if so, flag that we matched the name type
-				found = True
-				break
-		#we failed to locate our project in the database, abort downloader
-		if not found:
-			raise ValueError("The specified project was not found in the database")
-		#construct our JSON query, matching the formal formatting requirements
-		query = {"filter":
-					{"op": "=",
-					 "value": args.project,
-					 "field": project_type
-				}}
-	if args.format:
-		query['format'] = args.format
-	#fire up the query at the Matrix API
-	print("Contacting the Matrix API using the query: "+json.dumps(query))
-	resp = requests.post(MATRIX_URL+"/matrix", json=query)
-	#if there's no request_id field, something failed, report to user and abort
-	if "request_id" not in resp.json().keys():
-		raise ValueError("The Matrix API call failed with the following output: "+resp.text)
-	request_id = resp.json()['request_id']
-	print('Matrix API request ID: '+request_id)
-	while True:
-		#check for doneness, the status will swap away from In Progress
-		status_resp = requests.get(MATRIX_URL+"/matrix/"+resp.json()["request_id"])
-		if status_resp.json()["status"] != "In Progress":
-			break
-		time.sleep(30)
-	#did we succeed?
-	if status_resp.json()['status'] == "Complete":
-		#if we did, download the matrix
-		matrix_response = requests.get(status_resp.json()["matrix_url"], stream=True)
-		matrix_filename = os.path.basename(status_resp.json()["matrix_url"])
-		with open(matrix_filename, 'wb') as matrix_file:
-			shutil.copyfileobj(matrix_response.raw, matrix_file)
-		#this used to come as a zip for everything, now loom just comes plain
-		if args.format != 'loom':
-			zipfile.ZipFile(matrix_filename).extractall()
-			#for whatever crazy reason, the folder within the zip sometimes comes with a
-			#different name than the request id. possibly some caching on their end.
-			#rename to match our request ID
-			os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0], request_id+'.'+args.format)
-			os.remove(matrix_filename)
-		if args.outprefix:
-			os.rename(
-				'{}.{}'.format(request_id, args.format),
-				'{}.{}'.format(args.outprefix, args.format))
-	else:
-		#something went wrong, spit out what and abort
-		raise ValueError("The Matrix API call failed with the following output: "+status_resp.text)
+    # parse the command line arguments
+    args = parse_args()
+    loaded_index = load_project_index('ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/dcp1_matrices/hca_dcp_project_index.json')
+    requested_project_uuid = get_project_uuid(args.project, loaded_index)
+    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid])
+    print("Project matrix data successfully downloaded.")
+    sys.exit()
+
 
 if __name__ == "__main__":
-	main()
+    main()
