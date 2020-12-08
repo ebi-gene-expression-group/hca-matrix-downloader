@@ -41,7 +41,7 @@ def get_project_uuid(project_arg, project_index):
     except KeyError as e:
         print(e)
         print("The project identifier '{}' was not found in the database. Please check input and try again.".format(str(e)))
-        sys.exit()
+        sys.exit(1)
 
 
 def download_file(project_uuid, file_format, prefix, project_info):
