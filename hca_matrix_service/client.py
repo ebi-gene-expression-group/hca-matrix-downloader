@@ -19,6 +19,8 @@ def parse_args():
     parser.add_argument('-o', '--outprefix', default=None,
                         help="Output prefix to replace project uuid in filename of downloaded matrix. Leave as project "
                              "uuid if not specified.")
+    parser.add_argument('-s','--species', help="The species to use, when a project has more than one.",
+                        default=None, required=False)
     args = parser.parse_args()
     return args
 
@@ -44,28 +46,38 @@ def get_project_uuid(project_arg, project_index):
         sys.exit(1)
 
 
-def download_file(project_uuid, file_format, prefix, project_info):
+def download_file(project_uuid, file_format, prefix, project_info, species_to_use):
     file_address = project_info[file_format]
     files_dict = {fa: os.path.basename(fa) for fa in file_address}
 
     print("Found " + str(len(files_dict)) + " matrices to download.")
 
+    species_list = [matrix_filename.split(".")[1] for ftp_a, matrix_filename in files_dict.items()]
+    if len(species_list) > 1 and (not species_to_use or species_to_use not in species_list):
+        print("Study has more than one species, so set the --species field to one of these values:")
+        print(f"{species_list}")
+        sys.exit(2)
+    elif len(species_list) == 1:
+        species_to_use = species_list[0]
     for ftp_address, matrix_filename in files_dict.items():
-        print("Downloading from " + ftp_address + ".")
         species = matrix_filename.split(".")[1]
+        if species != species_to_use:
+            continue
+        print("Downloading from " + ftp_address + ".")
+
         with urllib.request.urlopen(ftp_address) as response, open(matrix_filename, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
 
         if file_format != 'loom':
             zipfile.ZipFile(matrix_filename).extractall()
             os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
-                      "{}.{}.{}".format(project_uuid, species, file_format))
+                      f"{project_uuid}.{file_format}")
             os.remove(matrix_filename)
 
         if prefix:
             os.rename(
-                '{}.{}.{}'.format(project_uuid, species, file_format),
-                '{}.{}.{}'.format(prefix, species, file_format)
+                f'{project_uuid}.{species}.{file_format}',
+                f'{prefix}.{file_format}'
             )
 
 def main():
@@ -73,7 +85,7 @@ def main():
     args = parse_args()
     loaded_index = load_project_index('ftp://ftp.ebi.ac.uk/pub/databases/hca-dcp/dcp1_matrices/hca_dcp_project_index.json')
     requested_project_uuid = get_project_uuid(args.project, loaded_index)
-    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid])
+    download_file(requested_project_uuid, args.format, args.outprefix, loaded_index[requested_project_uuid], species_to_use=args.species)
     print("Project matrix data successfully downloaded.")
     sys.exit()
 
