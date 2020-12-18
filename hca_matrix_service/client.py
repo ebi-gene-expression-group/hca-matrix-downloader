@@ -71,7 +71,7 @@ def download_file(project_uuid, file_format, prefix, project_info, species_to_us
         if file_format != 'loom':
             zipfile.ZipFile(matrix_filename).extractall()
             os.rename(zipfile.ZipFile(matrix_filename).namelist()[0].split('/')[0],
-                      f"{project_uuid}.{file_format}")
+                      f"{project_uuid}.{species}.{file_format}")
             os.remove(matrix_filename)
 
         if prefix:
